@@ -6,6 +6,8 @@ import collections
 import functools
 import random
 import tensorflow.compat.v1 as tf
+import os
+import csv
 
 tf.disable_v2_behavior()
 
@@ -52,7 +54,7 @@ print("SLIDING_STEP:", SLIDING_STEP)
 
 class TrainingInstance(object):
     """A single training instance (sentence pair)."""
-
+    print("TrainingInstance(object) called")
     def __init__(self, address, tokens, masked_lm_positions, masked_lm_labels):
 
         self.address = [address]
@@ -89,36 +91,38 @@ class TrainingInstance(object):
         return self.__str__()
 
 
-def printable_text(text):
-    """Returns text encoded in a way suitable for print or `tf.logging`."""
-
-    # These functions want `str` for both Python2 and Python3, but in one case
-    # it's a Unicode string and in the other it's a byte string.
-    if six.PY3:
-        if isinstance(text, str):
-            return text
-        elif isinstance(text, bytes):
-            return text.decode("utf-8", "ignore")
-        else:
-            raise ValueError("Unsupported string type: %s" % (type(text)))
-    elif six.PY2:
-        if isinstance(text, str):
-            return text
-        elif isinstance(text, unicode):
-            return text.encode("utf-8")
-        else:
-            raise ValueError("Unsupported string type: %s" % (type(text)))
-    else:
-        raise ValueError("Not running on Python2 or Python 3?")
+# def printable_text(text):
+#     """Returns text encoded in a way suitable for print or `tf.logging`."""
+#     # print("in printable_text")
+#     # These functions want `str` for both Python2 and Python3, but in one case
+#     # it's a Unicode string and in the other it's a byte string.
+#     if six.PY3:
+#         if isinstance(text, str):
+#             return text
+#         elif isinstance(text, bytes):
+#             return text.decode("utf-8", "ignore")
+#         else:
+#             raise ValueError("Unsupported string type: %s" % (type(text)))
+#     elif six.PY2:
+#         if isinstance(text, str):
+#             return text
+#         elif isinstance(text, unicode):
+#             return text.encode("utf-8")
+#         else:
+#             raise ValueError("Unsupported string type: %s" % (type(text)))
+#     else:
+#         raise ValueError("Not running on Python2 or Python 3?")
 
 
 def create_int_feature(values):
+    # print("in create_int_feature")
     feature = tf.train.Feature(
         int64_list=tf.train.Int64List(value=list(values)))
     return feature
 
 
 def create_float_feature(values):
+    # print("in create_float_feature")
     feature = tf.train.Feature(
         float_list=tf.train.FloatList(value=list(values)))
     return feature
@@ -132,6 +136,7 @@ def gen_samples(sequences,
                 rng):
     instances = []
     # create train
+    print("In gen_samples")
     for step in range(dupe_factor):
         start = time.time()
         for tokens in sequences:
@@ -153,7 +158,7 @@ def gen_samples(sequences,
 def create_masked_lm_predictions(tokens, masked_lm_prob,
                                  max_predictions_per_seq, rng):
     """Creates the predictions for the masked LM objective."""
-
+    # print("in create_masked_lm_predictions")
     address = tokens[0][0]
     cand_indexes = []
     for (i, token) in enumerate(tokens):
@@ -186,6 +191,7 @@ def create_masked_lm_predictions(tokens, masked_lm_prob,
 
 def create_embedding_predictions(tokens):
     """Creates the predictions for the masked LM objective."""
+    # print("In create_embedding_predictions")
     address = tokens[0][0]
     output_tokens = tokens
     masked_lm_positions = []
@@ -197,6 +203,7 @@ def gen_embedding_samples(sequences):
     instances = []
     # create train
     start = time.time()
+    print("In gen_embedding_samples calls create_embedding_predictions")
     for tokens in sequences:
         (address, tokens, masked_lm_positions,
          masked_lm_labels) = create_embedding_predictions(tokens)
@@ -214,6 +221,7 @@ def gen_embedding_samples(sequences):
 
 
 def convert_timestamp_to_position(block_timestamps):
+    # print("In convert_timestamp_to_position ")
     position = [0]
     if len(block_timestamps) <= 1:
         return position
@@ -232,6 +240,7 @@ def write_instance_to_example_files(instances, max_seq_length,
                                     output_files):
     """Create TF example files from `TrainingInstance`s."""
     writers = []
+    print("In write_instance_to_example_files")
     for output_file in output_files:
         writers.append(tf.python_io.TFRecordWriter(output_file))
 
@@ -300,8 +309,8 @@ def write_instance_to_example_files(instances, max_seq_length,
 
         if inst_index < 3:
             tf.logging.info("*** Example ***")
-            tf.logging.info("tokens: %s" % " ".join(
-                [printable_text(x) for x in instance.tokens]))
+            # tf.logging.info("tokens: %s" % " ".join(
+                # [printable_text(x) for x in instance.tokens]))
 
             for feature_name in features.keys():
                 feature = features[feature_name]
@@ -333,6 +342,7 @@ def cmp_udf_reverse(x1, x2):
 
 
 def main():
+    print("In main of gen_pretrain_data")
     vocab = FreqVocab()
     print("===========Load Sequence===========")
     with open(FLAGS.data_dir + "eoa2seq_" + FLAGS.bizdate + ".pkl", "rb") as f:
@@ -353,9 +363,15 @@ def main():
     print("===========Original===========")
     length_list = []
     for eoa in eoa2seq.keys():
+        # print("weewoo")
+        # print(eoa2seq[eoa])
         seq = eoa2seq[eoa]
+        # print(type(seq))
+        # print(seq)
         length_list.append(len(seq))
-
+    
+    
+    
     length_list = np.array(length_list)
     print("Median:", np.median(length_list))
     print("Mean:", np.mean(length_list))
@@ -365,6 +381,8 @@ def main():
     max_num_tokens = FLAGS.max_seq_length - 1
     seqs = []
     idx = 0
+    # print(type(eoa2seq))
+    
     for eoa, seq in eoa2seq.items():
         if len(seq) <= max_num_tokens:
             seqs.append([[eoa, 0, 0, 0, 0, 0]])
@@ -397,8 +415,16 @@ def main():
         write_instance_to_example_files(write_instance, FLAGS.max_seq_length,
                                         MAX_PREDICTIONS_PER_SEQ, vocab,
                                         [output_filename])
-
-    seqs = np.random.permutation(seqs)
+    print ("just before np.random called")
+    # print(len(seqs))
+    print(len(seqs[0]))
+    print(type(seqs))
+    
+    # seqs_array = np.array(seqs)
+    # seqs = np.random.permutation(seqs)
+    # Shuffle elements within each sequence (if that's what you want)
+    for seq in seqs:
+        np.random.shuffle(seq)  # Shuffle the inner sequence
 
     if FLAGS.do_eval:  # select 20% for testing
         print("========Generate Evaluation Samples========")

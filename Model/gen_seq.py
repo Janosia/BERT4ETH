@@ -10,6 +10,7 @@ tf.disable_v2_behavior()
 flags = tf.flags
 FLAGS = flags.FLAGS
 
+#data pre-processing parameters
 flags.DEFINE_bool("phisher", True, "whether to include phisher detection dataset.")
 flags.DEFINE_bool("deanon", True, "whether to include de-anonymization dataset.")
 flags.DEFINE_bool("tornado", True, "whether to include tornado dataset.")
@@ -46,6 +47,8 @@ def cmp_udf_reverse(x1, x2):
     else:
         return 0
 
+
+# separating in tx and out tx
 def load_data(f_in, f_out):
     eoa2seq_out = {}
     error_trans = []
@@ -92,6 +95,8 @@ def load_data(f_in, f_out):
             eoa2seq_in[to_address] = [[from_address, block_number, block_timestamp, value, "IN", 1]] # in/out, cnt
     return eoa2seq_in, eoa2seq_out
 
+
+# 72 hour timeframe for repition reduction
 def seq_duplicate(eoa2seq_in, eoa2seq_out):
     eoa2seq_agg_in = {}
     for eoa in eoa2seq_in.keys():
@@ -154,6 +159,7 @@ def seq_duplicate(eoa2seq_in, eoa2seq_out):
 
     return eoa2seq_agg
 
+#filtering out popular accounts 
 def seq_generation(eoa2seq_in, eoa2seq_out):
 
     eoa_list = list(eoa2seq_out.keys()) # eoa_list must include eoa account only (i.e., have out transaction at least)
@@ -175,6 +181,7 @@ def seq_generation(eoa2seq_in, eoa2seq_out):
 
     return eoa2seq
 
+#categorical to numerical
 def feature_bucketization(eoa2seq_agg):
 
     for eoa in eoa2seq_agg.keys():
@@ -238,7 +245,7 @@ def feature_bucketization(eoa2seq_agg):
     return eoa2seq_agg
 
 def main():
-
+    # Data\normal_trans\normal_eoa_transaction_in_slice_1000K.csv
     f_in = open(os.path.join(FLAGS.data_dir, "normal_eoa_transaction_in_slice_1000K.csv"), "r")
     f_out = open(os.path.join(FLAGS.data_dir, "normal_eoa_transaction_out_slice_1000K.csv"), "r")
     print("Add normal account transactions.")
@@ -249,6 +256,9 @@ def main():
         eoa2seq_agg = seq_duplicate(eoa2seq_in, eoa2seq_out)
     else:
         eoa2seq_agg = seq_generation(eoa2seq_in, eoa2seq_out)
+
+    with open("./phishing/eoa2seq_" + FLAGS.bizdate + ".pkl", "wb") as f:
+        pkl.dump(eoa2seq_agg, f)
 
     if FLAGS.phisher:
         print("Add phishing..")
@@ -262,32 +272,33 @@ def main():
             phisher_eoa2seq_agg = seq_generation(phisher_eoa2seq_in, phisher_eoa2seq_out)
 
         eoa2seq_agg.update(phisher_eoa2seq_agg)
+    with open("./normal/eoa2seq_" + FLAGS.bizdate + ".pkl", "wb") as f:
+        pkl.dump(eoa2seq_agg, f)
+    # if FLAGS.deanon:
+    #     print("Add ENS..")
+    #     dean_f_in = open(os.path.join(FLAGS.data_dir, "dean_trans_in_new.csv"), "r")
+    #     dean_f_out = open(os.path.join(FLAGS.data_dir, "dean_trans_out_new.csv"), "r")
+    #     dean_eoa2seq_in, dean_eoa2seq_out = load_data(dean_f_in, dean_f_out)
 
-    if FLAGS.deanon:
-        print("Add ENS..")
-        dean_f_in = open(os.path.join(FLAGS.data_dir, "dean_trans_in_new.csv"), "r")
-        dean_f_out = open(os.path.join(FLAGS.data_dir, "dean_trans_out_new.csv"), "r")
-        dean_eoa2seq_in, dean_eoa2seq_out = load_data(dean_f_in, dean_f_out)
+    #     if FLAGS.dup:
+    #         dean_eoa2seq_agg = seq_duplicate(dean_eoa2seq_in, dean_eoa2seq_out)
+    #     else:
+    #         dean_eoa2seq_agg = seq_generation(dean_eoa2seq_in, dean_eoa2seq_out)
 
-        if FLAGS.dup:
-            dean_eoa2seq_agg = seq_duplicate(dean_eoa2seq_in, dean_eoa2seq_out)
-        else:
-            dean_eoa2seq_agg = seq_generation(dean_eoa2seq_in, dean_eoa2seq_out)
+    #     eoa2seq_agg.update(dean_eoa2seq_agg)
 
-        eoa2seq_agg.update(dean_eoa2seq_agg)
+    # if FLAGS.tornado:
+    #     print("Add tornado...")
+    #     tornado_in = open(os.path.join(FLAGS.data_dir, "tornado_trans_in_removed.csv"), "r")
+    #     tornado_out = open(os.path.join(FLAGS.data_dir, "tornado_trans_out_removed.csv"), "r")
+    #     tornado_eoa2seq_in, tornado_eoa2seq_out = load_data(tornado_in, tornado_out)
 
-    if FLAGS.tornado:
-        print("Add tornado...")
-        tornado_in = open(os.path.join(FLAGS.data_dir, "tornado_trans_in_removed.csv"), "r")
-        tornado_out = open(os.path.join(FLAGS.data_dir, "tornado_trans_out_removed.csv"), "r")
-        tornado_eoa2seq_in, tornado_eoa2seq_out = load_data(tornado_in, tornado_out)
+    #     if FLAGS.dup:
+    #         tornado_eoa2seq_agg = seq_duplicate(tornado_eoa2seq_in, tornado_eoa2seq_out)
+    #     else:
+    #         tornado_eoa2seq_agg = seq_generation(tornado_eoa2seq_in, tornado_eoa2seq_out)
 
-        if FLAGS.dup:
-            tornado_eoa2seq_agg = seq_duplicate(tornado_eoa2seq_in, tornado_eoa2seq_out)
-        else:
-            tornado_eoa2seq_agg = seq_generation(tornado_eoa2seq_in, tornado_eoa2seq_out)
-
-        eoa2seq_agg.update(tornado_eoa2seq_agg)
+    #     eoa2seq_agg.update(tornado_eoa2seq_agg)
 
     eoa2seq_agg = feature_bucketization(eoa2seq_agg)
 
@@ -302,11 +313,10 @@ def main():
     print("Mean:", np.mean(length_list))
     print("Seq #:", len(length_list))
 
-    tf.gfile.MakeDirs("./inter_data")
+    tf.io.gfile.makedirs("./inter_data")
 
     with open("./inter_data/eoa2seq_" + FLAGS.bizdate + ".pkl", "wb") as f:
         pkl.dump(eoa2seq_agg, f)
-
 
 if __name__ == '__main__':
     main()

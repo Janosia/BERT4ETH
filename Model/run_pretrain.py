@@ -164,7 +164,7 @@ def input_fn(input_files,
 def model_fn(features, mode, bert_config, vocab, init_checkpoint, learning_rate,
              num_train_steps, num_warmup_steps, use_tpu, use_one_hot_embeddings):
     """The `model_fn` for TPUEstimator."""
-
+    print("in run pretrain and carrying out model_fn")
     tf.logging.info("*** Features ***")
     for name in sorted(features.keys()):
         tf.logging.info("name = %s, shape = %s" % (name,
@@ -303,6 +303,8 @@ def model_fn(features, mode, bert_config, vocab, init_checkpoint, learning_rate,
 def get_masked_lm_output(bert_config, input_tensor, output_weights, positions,
                          label_ids, label_weights):
     """Get loss and log probs for the masked LM."""
+
+    print("in get_masked_lm_output")
     # [batch_size*label_size, dim]
     input_tensor = gather_indexes(input_tensor, positions)
 
@@ -351,7 +353,7 @@ def get_masked_lm_output(bert_config, input_tensor, output_weights, positions,
 def get_masked_lm_output_negative_sampling(bert_config, input_tensor, output_weights, positions,
                                            label_ids, label_weights, vocab):
     """Get loss and log probs for the masked LM."""
-
+    print("in get_masked_lm_output_negative_sampling")
     # negative sample randomly
     word_num = len(vocab.vocab_words) - 3
 
@@ -440,7 +442,7 @@ def get_masked_lm_output_negative_sampling(bert_config, input_tensor, output_wei
 def get_masked_lm_output_negative_sampling_unshare(bert_config, input_tensor, output_weights, positions,
                                                    label_ids, label_weights, vocab):
     """Get loss and log probs for the masked LM."""
-
+    print("in get_masked_lm_output_negative_sampling_unshare")
     # negative sample randomly
     word_num = len(vocab.vocab_words) - 3
 
@@ -535,6 +537,7 @@ def get_masked_lm_output_negative_sampling_unshare(bert_config, input_tensor, ou
 
 def gather_indexes(sequence_tensor, positions):
     """Gathers the vectors at the specific positions over a minibatch."""
+    print("In gather_indexes")
     sequence_shape = modeling.get_shape_list(sequence_tensor, expected_rank=3)
     batch_size = sequence_shape[0]
     seq_length = sequence_shape[1]
@@ -551,7 +554,7 @@ def gather_indexes(sequence_tensor, positions):
 def _decode_record(record, name_to_features):
     """Decodes a record to a TensorFlow example."""
     example = tf.parse_single_example(record, name_to_features)
-
+    print("in  _decode_record")
     # tf.Example only supports tf.int64, but the TPU only supports tf.int32.
     # So cast all int64 to int32.
     for name in list(example.keys()):
@@ -563,6 +566,7 @@ def _decode_record(record, name_to_features):
 
 
 def main(_):
+    print("in main of run_pretrain")
     if FLAGS.do_train:
         mode = tf.estimator.ModeKeys.TRAIN
         input_files = FLAGS.train_input_file + "." + FLAGS.bizdate
